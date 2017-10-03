@@ -7,12 +7,14 @@ import project_tests as tests
 
 
 # Check TensorFlow Version
-assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
+assert LooseVersion(tf.__version__) >= LooseVersion(
+    '1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
 
 # Check for a GPU
 if not tf.test.gpu_device_name():
-    warnings.warn('No GPU found. Please use a GPU to train your neural network.')
+    warnings.warn(
+        'No GPU found. Please use a GPU to train your neural network.')
 else:
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
@@ -24,7 +26,6 @@ def load_vgg(sess, vgg_path):
     :param vgg_path: Path to vgg folder, containing "variables/" and "saved_model.pb"
     :return: Tuple of Tensors from VGG model (image_input, keep_prob, layer3_out, layer4_out, layer7_out)
     """
-    # TODO: Implement function
     #   Use tf.saved_model.loader.load to load the model and weights
     vgg_tag = 'vgg16'
     vgg_input_tensor_name = 'image_input:0'
@@ -32,8 +33,21 @@ def load_vgg(sess, vgg_path):
     vgg_layer3_out_tensor_name = 'layer3_out:0'
     vgg_layer4_out_tensor_name = 'layer4_out:0'
     vgg_layer7_out_tensor_name = 'layer7_out:0'
-    
-    return None, None, None, None, None
+
+    # loads saved model into supplied session
+    tf.saved_model.loader.load(sess, [vgg_tag], vgg_path)
+
+    # extract tensors
+    graph = tf.get_default_graph()
+    image_input = graph.get_tensor_by_name(vgg_input_tensor_name)
+    keep_prob = graph.get_tensor_by_name(vgg_keep_prob_tensor_name)
+    layer3_out = graph.get_tensor_by_name(vgg_layer3_out_tensor_name)
+    layer4_out = graph.get_tensor_by_name(vgg_layer4_out_tensor_name)
+    layer7_out = graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
+
+    return image_input, keep_prob, layer3_out, layer4_out, layer7_out
+
+
 tests.test_load_vgg(load_vgg, tf)
 
 
@@ -46,8 +60,42 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
-    # TODO: Implement function
-    return None
+    pool3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1,
+                             padding='same',
+                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    pool4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1,
+                             padding='same',
+                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    output = tf.layers.conv2d(vgg_layer7_out, num_classes, 1,
+                              padding='same',
+                              kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    # deconvolution x2
+    output = tf.layers.conv2d_transpose(output, num_classes, 4, 2,
+                                        padding='same',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    # skip connection with pool4
+    output = tf.add(output, pool4)
+
+    # deconvolution x2
+    output = tf.layers.conv2d_transpose(output, num_classes, 4, 2,
+                                        padding='same',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    # skip connection with pool3
+    output = tf.add(output, pool3)
+
+    # deconvolution x8
+    output = tf.layers.conv2d_transpose(output, num_classes, 16, 8,
+                                        padding='same',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    return output
+
+
 tests.test_layers(layers)
 
 
@@ -60,8 +108,17 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :param num_classes: Number of classes to classify
     :return: Tuple of (logits, train_op, cross_entropy_loss)
     """
-    # TODO: Implement function
-    return None, None, None
+    # reshape to 2D where each row represents a pixel and each column a  class
+    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
+
+    loss_operation = tf.reduce_mean(cross_entropy_loss)
+    optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate)
+    train_op = optimizer.minimize(loss_operation)
+
+    return logits, train_op, cross_entropy_loss
+
 tests.test_optimize(optimize)
 
 
@@ -80,8 +137,13 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
-    # TODO: Implement function
-    pass
+    print("Training")
+    for epoch in range(epochs):
+        for image, label in get_batches_fn(batch_size):
+            _, loss_val = sess.run([train_op, cross_entropy_loss], 
+                feed_dict={input_image:image, correct_label:label, keep_prob:0.5, learning_rate:0.01})
+            print("Epoch {} ...".format(epoch), "Loss = {:.3f}".format(loss_val))
+
 tests.test_train_nn(train_nn)
 
 
@@ -103,14 +165,18 @@ def run():
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
         # Create function to get batches
-        get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
+        get_batches_fn = helper.gen_batch_function(
+            os.path.join(data_dir, 'data_road/training'), image_shape)
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
 
+
         # TODO: Train NN using the train_nn function
+        
+
 
         # TODO: Save inference data using helper.save_inference_samples
         #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
