@@ -62,20 +62,24 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
     pool3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1,
                              padding='same',
-                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     pool4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1,
                              padding='same',
-                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     output = tf.layers.conv2d(vgg_layer7_out, num_classes, 1,
                               padding='same',
-                              kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                              kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                              kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     # deconvolution x2
     output = tf.layers.conv2d_transpose(output, num_classes, 4, 2,
                                         padding='same',
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     # skip connection with pool4
     output = tf.add(output, pool4)
@@ -83,7 +87,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     # deconvolution x2
     output = tf.layers.conv2d_transpose(output, num_classes, 4, 2,
                                         padding='same',
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     # skip connection with pool3
     output = tf.add(output, pool3)
@@ -91,7 +96,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     # deconvolution x8
     output = tf.layers.conv2d_transpose(output, num_classes, 16, 8,
                                         padding='same',
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     return output
 
